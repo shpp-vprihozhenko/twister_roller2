@@ -7,6 +7,8 @@ import 'dart:async';
 
 import 'globals.dart';
 
+bool isListening = false;
+
 class GameLoopPage extends StatefulWidget {
   final numPlayers;
   GameLoopPage(this.numPlayers);
@@ -16,7 +18,8 @@ class GameLoopPage extends StatefulWidget {
 }
 
 class _GameLoopPageState extends State<GameLoopPage> {
-  final numPlayers;
+  int numPlayers;
+  bool isFound = false;
 
   _GameLoopPageState(this.numPlayers);
 
@@ -45,7 +48,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
   String playerTask = '';
 
   final SpeechToText speech = SpeechToText();
-  bool showMic = false, isListening = false;
+  bool showMic = false;//, isListening = false;
   double level=0;
 
   var rng = new Random();
@@ -110,17 +113,20 @@ class _GameLoopPageState extends State<GameLoopPage> {
     print("Received GLP error status: $error, listening: ${speech.isListening}");
     setState(() {
       isListening = false;
+      print('isListening $isListening');
     });
     Future.delayed(Duration(milliseconds: 900), startListening);
   }
 
   void statusListener(String status) {
-    print("Received GLP listener status: $status, listening: ${speech.isListening}");
+    //print("Received GLP listener status: $status, listening: ${speech.isListening}");
   }
 
   void startListening() async {
+    print('startListening');
     await Future.delayed(Duration(milliseconds: 300));
     isListening = true;
+    isFound = false;
     setState(() {
       showMic = true;
     });
@@ -129,8 +135,8 @@ class _GameLoopPageState extends State<GameLoopPage> {
       // listenFor: Duration(seconds: 60),
       // pauseFor: Duration(seconds: 3),
       localeId: 'ru_RU', // en_US uk_UA ru_RU
-      onSoundLevelChange: soundLevelListener,
-      cancelOnError: true,
+      // onSoundLevelChange: soundLevelListener,
+      cancelOnError: false,
       partialResults: true,
       // onDevice: true,
       // listenMode: ListenMode.confirmation,
@@ -138,16 +144,20 @@ class _GameLoopPageState extends State<GameLoopPage> {
     );
   }
 
-  void soundLevelListener(double level) {
-    setState(() {
-      this.level = level;
-    });
-  }
+  // void soundLevelListener(double level) {
+  //   setState(() {
+  //     this.level = level;
+  //   });
+  // }
 
   void resultListener(SpeechRecognitionResult result) async {
     print ('got result $result');
+    if (isFound) {
+      return;
+    }
 
     List <String> recognizedWords = result.recognizedWords.toString().toUpperCase().split(' ');
+    print ('got recognizedWords $recognizedWords result.finalResult ${result.finalResult}');
 
     if (!result.finalResult) {
       print('not final result \n $recognizedWords');
@@ -155,9 +165,23 @@ class _GameLoopPageState extends State<GameLoopPage> {
         print('found for ПОВТОРИ');
         speech.stop();
         isListening = false;
+        isFound = true;
+        return;
+      } else if (recognizedWords.indexOf('ПРОИГРАЛ') > -1) {
+        print('found for ПРОИГРАЛ');
+        speech.stop();
+        isListening = false;
+        _playerLeft();
+        isFound = true;
+        return;
+      } else if (recognizedWords.contains('НОВЫЙ') && recognizedWords.contains('ИГРОК')) {
+        print('found for НОВЫЙ ИГРОК');
+        speech.stop();
+        isListening = false;
+        _playerAdd();
+        isFound = true;
         return;
       }
-      bool isFound = false;
       recognizedWords.forEach((cmd) {
         if (cmd == 'OK' || cmd == 'О\'КЕ' || cmd == 'ОКЕЙ' || cmd == 'ДАЛЬШЕ' || cmd == 'СЛЕДУЮЩИЙ') {
           isFound = true;
@@ -167,19 +191,26 @@ class _GameLoopPageState extends State<GameLoopPage> {
       if (isFound) {
         speech.stop();
         isListening = false;
+        startNextPlayerLoop();
         return;
       }
-    }
-    if (result.finalResult) {
+    } else {
       isListening = false;
       setState(() {
         showMic = false;
       });
       if (recognizedWords.indexOf('OK') > -1 || recognizedWords.indexOf('О\'КЕЙ') > -1
+          || recognizedWords.indexOf('ОКЕЙ') > -1
           || recognizedWords.indexOf('ДАЛЬШЕ') > -1 || recognizedWords.indexOf('ОК') > -1
           || recognizedWords.indexOf('СЛЕДУЮЩИЙ') > -1) {
         print('start new random loop');
         startNextPlayerLoop();
+      } else if (recognizedWords.contains('НОВЫЙ') && recognizedWords.contains('ИГРОК')) {
+        print('НОВ ИГР');
+        _playerAdd();
+      } else if (recognizedWords.indexOf('ПРОИГРАЛ') > -1) {
+        print('ПРОИГРАЛ');
+        _playerLeft();
       } else if (recognizedWords.indexOf('ПОВТОРИ') > -1) {
         print('repeat');
         repeatAndStartListeningAgain();
@@ -205,13 +236,19 @@ class _GameLoopPageState extends State<GameLoopPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Вращаем барабан!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(showMic? 'Жду команду' : 'Вращаем барабан!',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+        ),
       ),
       body: Center(
         child: ListView(
           shrinkWrap: true,
           children: [
-            SizedBox(height: 10,),
+            Text('Количество игроков $numPlayers',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18),
+            ),
+            SizedBox(height: 40,),
             Text('Задание для игрока', textScaleFactor: 2, textAlign: TextAlign.center,),
             SizedBox(height: 10,),
             Text('№ $playerNumber',
@@ -285,41 +322,28 @@ class _GameLoopPageState extends State<GameLoopPage> {
                   ),
                   SizedBox(height: 26,),
                   Center(
-                    child: Container(
-                      width: 100, height: 100,
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                              blurRadius: .26,
-                              spreadRadius: level * 1.5,
-                              color: Colors.black.withOpacity(.1))
-                        ],
-                        color: Colors.lightGreenAccent,
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                      child: Center(
-                        child: FloatingActionButton(
-                            backgroundColor: Colors.white,
-                            onPressed: (){
-                              startNextPlayerLoop();
-                            },
-                            child: Icon(Icons.mic, color: Colors.blueAccent, size: 50,)
-                        ),
-                      ),
+                    child: GestureDetector(
+                        onTap: (){
+                          startNextPlayerLoop();
+                        },
+                        child: ActiveMic()  //Icon(Icons.mic, color: Colors.blueAccent, size: 50,)
                     ),
                   ),
                   SizedBox(height: 26,),
                   ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Text('Окей - следующий игрок',
                         style: TextStyle(
-                            fontSize: 18
+                            fontSize: 18,
+                          color: Colors.white
                         ),
                       ),
                     ),
                     onPressed: startNextPlayerLoop,
                   ),
+                  SizedBox(height: 30,)
                 ],
               )
                 :
@@ -329,6 +353,35 @@ class _GameLoopPageState extends State<GameLoopPage> {
         ),
       ),
     );
+  }
+
+  _playerLeft(){
+    numPlayers --;
+    if (numPlayers<2) {
+      numPlayers = 2;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Количество игроков $numPlayers',
+              style: TextStyle(fontSize: 32),
+            )
+        )
+    );
+    randomizerLoop();
+  }
+
+  _playerAdd(){
+    numPlayers ++;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Количество игроков $numPlayers',
+              style: TextStyle(fontSize: 32),
+            )
+        )
+    );
+    randomizerLoop();
   }
 
   startNextPlayerLoop(){
@@ -354,4 +407,64 @@ class _GameLoopPageState extends State<GameLoopPage> {
     );
   }
 
+}
+
+
+class ActiveMic extends StatefulWidget {
+  final double? size;
+  final Color? bgOff;
+  const ActiveMic({Key? key, this.size, this.bgOff}) : super(key: key);
+
+  @override
+  _ActiveMicState createState() => _ActiveMicState();
+}
+
+class _ActiveMicState extends State<ActiveMic> with SingleTickerProviderStateMixin {
+  late Animation<double> animation;
+  late AnimationController controller;
+  double size = 36;
+  Color bgOff = Colors.white;
+
+  @override
+  void initState() {
+    bgOff = widget.bgOff ?? Colors.blueAccent;
+    super.initState();
+    size = widget.size ?? 70;
+    controller = AnimationController(duration: const Duration(milliseconds: 500), vsync: this);
+    animation = Tween<double>(begin: 0, end: 1).animate(controller);
+    animation.addListener((){
+      setState(() {});
+    });
+    controller.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return
+      isListening?
+      Opacity(
+        opacity: animation.value,
+        child: ClipOval(
+          child: Container(
+            padding: const EdgeInsets.all(5),
+            color: bgOff,
+            child: Icon(Icons.mic, color: Colors.redAccent[100], size: size,),
+          ),
+        ),
+      )
+          :
+      ClipOval(
+        child: Container(
+          padding: const EdgeInsets.all(5),
+          color: bgOff,
+          child: Icon(Icons.mic, color: Colors.green[50], size: size,),
+        ),
+      );
+  }
 }

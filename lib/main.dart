@@ -60,9 +60,12 @@ class _MyHomePageState extends State<MyHomePage> {
     speakingMode = true;
     setState(() {});
     await speak('Привет! Я - интерактивный помощник для игры в Твистер.');
-    await speak('Я понимаю такие голосовые команды:');
-    await speak('Окей -- следующий игрок.');
-    await speak('"А ну повтори!" -- повторить задание.');
+    await speak('Я понимаю такие команды:');
+    await speak('Окей -- следующий игрок');
+    await speak('Проиграл -- игрок выбывает');
+    await speak('Новый игрок -- игрок добавляется');
+    await speak('"А ну повтори!" -- повторить задание');
+    await Future.delayed(Duration(milliseconds: 1200));
     await speak('Для начала нажми "Старт"!');
     speakingMode = false;
     setState(() {});
@@ -116,6 +119,32 @@ class _MyHomePageState extends State<MyHomePage> {
                       fontSize: 24
                     ),),
                     Text(' - следующий игрок,', style: TextStyle(
+                        fontSize: 18
+                    ),),
+                  ],
+                ),
+                SizedBox(height: 12,),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('"Проиграл"', style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24
+                    ),),
+                    Text(' - игрок выбывает,', style: TextStyle(
+                        fontSize: 18
+                    ),),
+                  ],
+                ),
+                SizedBox(height: 12,),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('"Новый игрок"', style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24
+                    ),),
+                    Text(' - плюс игрок,', style: TextStyle(
                         fontSize: 18
                     ),),
                   ],
@@ -185,6 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 SizedBox(height: 20),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
                   onPressed: (){
                     print('start with $numPlayers');
                     goToStartGamePage();
