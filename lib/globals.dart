@@ -8,16 +8,31 @@ initTts() async {
   flutterTts = FlutterTts();
   if (Platform.isIOS) {
     print('isIOS!');
+    // await flutterTts.setSharedInstance(true);
+    // await flutterTts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback,
+    //     [
+    //       IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+    //       IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+    //       IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+    //       IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
+    //     ],
+    //     IosTextToSpeechAudioMode.defaultMode
+    // );
     await flutterTts.setSharedInstance(true);
     await flutterTts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback,
-        [
-          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-          IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
-          IosTextToSpeechAudioCategoryOptions.mixWithOthers,
-          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-        ],
-        IosTextToSpeechAudioMode.defaultMode
+        [IosTextToSpeechAudioCategoryOptions.mixWithOthers,],
+        IosTextToSpeechAudioMode.voicePrompt
     );
+  } else {
+    String defEng = await flutterTts.getDefaultEngine;
+    print('android with defEng $defEng');
+    if (!defEng.contains('google')) {
+      var engines = await flutterTts.getEngines;
+      print('engines $engines');
+      int gIdx = engines.indexWhere((element) => element.toString().contains('google'));
+      await flutterTts.setEngine(engines[gIdx]);
+      print('def enginr set to ${engines[gIdx]}');
+    }
   }
   await flutterTts.setVolume(1);
   await flutterTts.setSpeechRate(0.45);

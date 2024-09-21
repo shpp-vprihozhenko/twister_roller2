@@ -4,8 +4,16 @@ import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'dart:async';
-
 import 'globals.dart';
+
+/*
+старт - опред нов результат
+форм рандом ряд картинок + результат
+  как лист с офсетами, -номерКарт*пикСайз-офСет
+старт анимации 0..1
+показ картинок -
+*/
+
 
 bool isListening = false;
 
@@ -50,14 +58,46 @@ class _GameLoopPageState extends State<GameLoopPage> {
   final SpeechToText speech = SpeechToText();
   bool showMic = false;//, isListening = false;
   double level=0;
-
   var rng = new Random();
+  double _offset = 0;
+  int _curPicIdx = 0;
+
+  List <Widget> toScroll = [];
+  double lengthToScroll = 0;
 
   @override
   void initState() {
     initTtsAndStt();
     super.initState();
     Future.delayed(const Duration(milliseconds: refreshPeriodMS), randomizerLoop);
+    _periodical();
+  }
+
+  _startScrollToIdx(int idx) {
+    toScroll = []; lengthToScroll = 0;
+    lengthToScroll = fullImgList.length*picSize;
+    for (int index = 0; index < fullImgList.length; index++) {
+      String fName = fullImgList[index];
+      toScroll.add(
+        Positioned(
+          top: 0, left: index*picSize,
+          child: Image.asset(fName, width: picSize, height: picSize,)
+        )
+      );
+    }
+  }
+
+  _periodical(){
+    _offset += picSize / (1000 / 30) * 3;
+    if (_offset >= picSize) {
+      _offset = 0;
+      _curPicIdx--;
+      if (_curPicIdx < 0) {
+        _curPicIdx = fullImgList.length-1;
+      }
+    }
+    setState(() {});
+    Future.delayed(const Duration(milliseconds: 30), _periodical);
   }
 
   @override
@@ -72,28 +112,33 @@ class _GameLoopPageState extends State<GameLoopPage> {
   randomizerLoop(){
     print('randomizerLoop');
     int _newCount = rng.nextInt(16);
-    print('got new count $_newCount');
+    //print('got new count $_newCount');
+
     numLoop++;
-    _lastKey = _count; // + (_colorCount+1)*16
+    _lastKey = _count;
     if (numLoop < numLoopsToFindResult) {
       Future.delayed(const Duration(milliseconds: refreshPeriodMS), randomizerLoop);
     } else {
-      Future.delayed(const Duration(milliseconds: refreshPeriodMS), (){
-        startSpeakAndWaitMode(_newCount);
-      });
+      //Future.delayed(const Duration(milliseconds: refreshPeriodMS+100), (){
+        startSpeakAndListen(_newCount);
+      //});
     }
     setState(() {
       _count = _newCount;
     });
   }
 
-  startSpeakAndWaitMode(_newCount) async {
-    print('startSpeakAndWaitMode');
+  startSpeakAndListen(_newCount) async {
+    print('startSpeakAndListenMode');
     numLoop = 0;
     setState(() {
       //playerTask = bodyParts[_newCount] + ' на ' + colorNames[_newColorCount] + '!';
       playerTask = fullImgListNames[_newCount] + '!';
     });
+    if (speech.isListening) {
+      speech.stop();
+    }
+    await Future.delayed(Duration(milliseconds: 300));
     await _speakSync('Игрок № $playerNumber');
     await _speakSync(playerTask);
     startListening();
@@ -115,7 +160,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
       isListening = false;
       print('isListening $isListening');
     });
-    Future.delayed(Duration(milliseconds: 900), startListening);
+    Future.delayed(Duration(milliseconds: 300), startListening);
   }
 
   void statusListener(String status) {
@@ -136,23 +181,15 @@ class _GameLoopPageState extends State<GameLoopPage> {
       // pauseFor: Duration(seconds: 3),
       localeId: 'ru_RU', // en_US uk_UA ru_RU
       // onSoundLevelChange: soundLevelListener,
-      cancelOnError: false,
-      partialResults: true,
       // onDevice: true,
       // listenMode: ListenMode.confirmation,
       // sampleRate: 44100,
     );
   }
 
-  // void soundLevelListener(double level) {
-  //   setState(() {
-  //     this.level = level;
-  //   });
-  // }
-
   void resultListener(SpeechRecognitionResult result) async {
-    print ('got result $result');
-    if (isFound) {
+    print ('got resultListener result $result');
+    if (isFound && !result.finalResult) {
       return;
     }
 
@@ -161,24 +198,28 @@ class _GameLoopPageState extends State<GameLoopPage> {
 
     if (!result.finalResult) {
       print('not final result \n $recognizedWords');
-      if (recognizedWords.indexOf('ПОВТОРИ') > -1) {
+      if (recognizedWords.contains('ПОВТОРИ') || recognizedWords.contains('ПОВТОРИМ') ) {
         print('found for ПОВТОРИ');
-        speech.stop();
         isListening = false;
+        speech.stop();
         isFound = true;
+        setState(() {});
+        //repeatAndStartListeningAgain();
         return;
       } else if (recognizedWords.indexOf('ПРОИГРАЛ') > -1) {
         print('found for ПРОИГРАЛ');
         speech.stop();
         isListening = false;
-        _playerLeft();
+        setState(() {});
+        //_playerLeft();
         isFound = true;
         return;
       } else if (recognizedWords.contains('НОВЫЙ') && recognizedWords.contains('ИГРОК')) {
         print('found for НОВЫЙ ИГРОК');
         speech.stop();
         isListening = false;
-        _playerAdd();
+        setState(() {});
+        //_playerAdd();
         isFound = true;
         return;
       }
@@ -191,7 +232,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
       if (isFound) {
         speech.stop();
         isListening = false;
-        startNextPlayerLoop();
+        _startNextPlayerLoop();
         return;
       }
     } else {
@@ -204,15 +245,15 @@ class _GameLoopPageState extends State<GameLoopPage> {
           || recognizedWords.indexOf('ДАЛЬШЕ') > -1 || recognizedWords.indexOf('ОК') > -1
           || recognizedWords.indexOf('СЛЕДУЮЩИЙ') > -1) {
         print('start new random loop');
-        startNextPlayerLoop();
+        _startNextPlayerLoop();
       } else if (recognizedWords.contains('НОВЫЙ') && recognizedWords.contains('ИГРОК')) {
-        print('НОВ ИГР');
+        print('НОВ ИГР final');
         _playerAdd();
-      } else if (recognizedWords.indexOf('ПРОИГРАЛ') > -1) {
+      } else if (recognizedWords.contains('ПРОИГРАЛ')) {
         print('ПРОИГРАЛ');
         _playerLeft();
-      } else if (recognizedWords.indexOf('ПОВТОРИ') > -1) {
-        print('repeat');
+      } else if (recognizedWords.contains('ПОВТОРИ') || recognizedWords.contains('ПОВТОРИМ')) {
+        print('repeat final');
         repeatAndStartListeningAgain();
       } else {
         print('no keywords. StartListening again.');
@@ -223,8 +264,17 @@ class _GameLoopPageState extends State<GameLoopPage> {
   }
 
   repeatAndStartListeningAgain() async {
+    print('repeatAndStartListeningAgain');
+    print('stop speech');
+    await speech.stop();
+    isListening = false;
+    setState(() {});
+    print('start speaking');
+    await Future.delayed(Duration(milliseconds: 300));
     await _speakSync('Игрок № $playerNumber');
+    print('start speaking2');
     await _speakSync(playerTask);
+    print('ok, starting');
     startListening();
   }
 
@@ -234,8 +284,11 @@ class _GameLoopPageState extends State<GameLoopPage> {
 
   @override
   Widget build(BuildContext context) {
+    int prevImgIdx = _curPicIdx==0? fullImgList.length-1 : _curPicIdx-1;
+    //print('prevImgIdx $prevImgIdx cur $_curPicIdx');
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.blue[300],
         title: Text(showMic? 'Жду команду' : 'Вращаем барабан!',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
         ),
@@ -248,9 +301,9 @@ class _GameLoopPageState extends State<GameLoopPage> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 18),
             ),
-            SizedBox(height: 40,),
-            Text('Задание для игрока', textScaleFactor: 2, textAlign: TextAlign.center,),
-            SizedBox(height: 10,),
+            SizedBox(height: 12,),
+            Text('Задание для игрока', style: TextStyle(fontSize: 24), textAlign: TextAlign.center,),
+            SizedBox(height: 8,),
             Text('№ $playerNumber',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -258,58 +311,73 @@ class _GameLoopPageState extends State<GameLoopPage> {
                 fontWeight: FontWeight.bold
               ),
             ),
-            SizedBox(height: 16,),
-            Center(
+            SizedBox(height: 8,),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: refreshPeriodMS),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                //return ScaleTransition(child: child, scale: animation);
+                //return FadeTransition(child: child, opacity: animation);
+                //return RotationTransition(child: child, turns: animation);
+                //final offsetAnimation = Tween<Offset>(begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0)).animate(animation);
+                //return ClipRect(child: SlideTransition(child: child, position: offsetAnimation));
+
+                final inAnimation =
+                  Tween<Offset>(begin: Offset(1.0, 0.0), end: Offset(0.0, 0.0))
+                      .animate(animation);
+                final outAnimation =
+                  Tween<Offset>(begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0))
+                      .animate(animation);
+
+                if (child.key == ValueKey(_lastKey)) {
+                  return ClipRect(
+                    child: SlideTransition(
+                      position: inAnimation,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: child,
+                      ),
+                    ),
+                  );
+                } else {
+                  return ClipRect(
+                    child: SlideTransition(
+                      position: outAnimation,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: child,
+                      ),
+                    ),
+                  );
+                }
+                //return ClipRect(child: SlideTransition(child: child, position: offsetAnimation));
+              },
               child: Container(
-                height: picSize*1.1,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: refreshPeriodMS),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    //return ScaleTransition(child: child, scale: animation);
-                    //return FadeTransition(child: child, opacity: animation);
-                    //return RotationTransition(child: child, turns: animation);
-                    //final offsetAnimation = Tween<Offset>(begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0)).animate(animation);
-                    //return ClipRect(child: SlideTransition(child: child, position: offsetAnimation));
-
-                    final inAnimation =
-                      Tween<Offset>(begin: Offset(1.0, 0.0), end: Offset(0.0, 0.0))
-                          .animate(animation);
-                    final outAnimation =
-                      Tween<Offset>(begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0))
-                          .animate(animation);
-
-                    if (child.key == ValueKey(_lastKey)) {
-                      return ClipRect(
-                        child: SlideTransition(
-                          position: inAnimation,
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: child,
-                          ),
-                        ),
-                      );
-                    } else {
-                      return ClipRect(
-                        child: SlideTransition(
-                          position: outAnimation,
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: child,
-                          ),
-                        ),
-                      );
-                    }
-                    //return ClipRect(child: SlideTransition(child: child, position: offsetAnimation));
-                  },
-                  child: Container(
-                    key: ValueKey<int>(_count), // + (_colorCount+1)*16
-                    width: picSize, height: picSize,
-                      child: Image.asset('images/${fullImgList[_count]}')
-                  ),
-                ),
+                key: ValueKey<int>(_count),
+                // width: picSize, height: picSize,
+                  child: Image.asset('images/${fullImgList[_count]}', width: picSize, height: picSize,)
               ),
             ),
-            SizedBox(height: 20,),
+            SizedBox(height: 8,),
+            // Row(
+            //   mainAxisAlignment: MainAxisAlignment.center,
+            //   children: [
+            //     Container(
+            //       width: picSize*1.1, height: picSize*1.1,
+            //       child: Stack(
+            //         children: [
+            //           Positioned(
+            //             top: 0, left: -picSize+_offset,
+            //             child: Image.asset('images/${fullImgList[prevImgIdx]}', width: picSize, height: picSize,)
+            //           ),
+            //           Positioned(
+            //             top: 0, left: _offset,
+            //             child: Image.asset('images/${fullImgList[_curPicIdx]}', width: picSize, height: picSize,)
+            //           ),
+            //         ],
+            //       ),
+            //     ),
+            //   ],
+            // ),
             showMic?
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -323,8 +391,10 @@ class _GameLoopPageState extends State<GameLoopPage> {
                   SizedBox(height: 26,),
                   Center(
                     child: GestureDetector(
-                        onTap: (){
-                          startNextPlayerLoop();
+                        onTap: () async {
+                          await speech.stop();
+                          await Future.delayed(Duration(milliseconds: 300));
+                          startListening();
                         },
                         child: ActiveMic()  //Icon(Icons.mic, color: Colors.blueAccent, size: 50,)
                     ),
@@ -341,13 +411,55 @@ class _GameLoopPageState extends State<GameLoopPage> {
                         ),
                       ),
                     ),
-                    onPressed: startNextPlayerLoop,
+                    onPressed: _startNextPlayerLoop,
                   ),
-                  SizedBox(height: 30,)
+                  SizedBox(height: 10,),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text('Проиграл',
+                        style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white
+                        ),
+                      ),
+                    ),
+                    onPressed: _playerLeft,
+                  ),
+                  SizedBox(height: 10,),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text('Новый игрок',
+                        style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white
+                        ),
+                      ),
+                    ),
+                    onPressed: _playerAdd,
+                  ),
+                  SizedBox(height: 10,),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text('А ну повтори!',
+                        style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white
+                        ),
+                      ),
+                    ),
+                    onPressed: repeatAndStartListeningAgain,
+                  ),
+                  SizedBox(height: 50),
                 ],
               )
                 :
-              SizedBox(height: 275,)
+              SizedBox(height: 475,)
             ,
           ],
         ),
@@ -368,10 +480,12 @@ class _GameLoopPageState extends State<GameLoopPage> {
             )
         )
     );
-    randomizerLoop();
+    print('_playerLeft ok playerNumber $playerNumber numPlayers $numPlayers');
+    _startNextPlayerLoop();
   }
 
   _playerAdd(){
+    speech.stop();
     numPlayers ++;
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
@@ -381,10 +495,12 @@ class _GameLoopPageState extends State<GameLoopPage> {
             )
         )
     );
-    randomizerLoop();
+    startListening();
+    //randomizerLoop();
   }
 
-  startNextPlayerLoop(){
+  _startNextPlayerLoop() async {
+    await speech.stop();
     playerNumber++;
     if (playerNumber > numPlayers) {
       playerNumber = 1;
@@ -393,6 +509,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
       showMic = false;
       playerTask = '';
     });
+    numLoop = 0;
     randomizerLoop();
   }
 

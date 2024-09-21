@@ -40,6 +40,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   bool showMic = false;
   double level=0;
+  bool isStarted = false;
 
   @override
   initState() {
@@ -60,13 +61,20 @@ class _MyHomePageState extends State<MyHomePage> {
     speakingMode = true;
     setState(() {});
     await speak('Привет! Я - интерактивный помощник для игры в Твистер.');
+    if (isStarted) { return; }
     await speak('Я понимаю такие команды:');
+    if (isStarted) { return; }
     await speak('Окей -- следующий игрок');
+    if (isStarted) { return; }
     await speak('Проиграл -- игрок выбывает');
+    if (isStarted) { return; }
     await speak('Новый игрок -- игрок добавляется');
+    if (isStarted) { return; }
     await speak('"А ну повтори!" -- повторить задание');
-    await Future.delayed(Duration(milliseconds: 1200));
+    if (isStarted) { return; }
+    await Future.delayed(Duration(milliseconds: 1000));
     await speak('Для начала нажми "Старт"!');
+    if (isStarted) { return; }
     speakingMode = false;
     setState(() {});
   }
@@ -75,16 +83,17 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title, textScaleFactor: 1.4, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        leading: TextButton(
+        backgroundColor: Colors.blue[300],
+        title: Text(widget.title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
+        leading: ElevatedButton(
           onPressed: (){
             Navigator.push(context,
                 MaterialPageRoute(builder: (context) => About())
             );
           },
           child: Text('?', style: TextStyle(
-            color: Colors.white,
-            fontSize: 32,
+            color: Colors.blue,
+            fontSize: 24,
           ),),
         ),
       ),
@@ -93,7 +102,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Center(
           child: DefaultTextStyle(
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               color: Colors.black
             ),
             child: ListView(
@@ -103,12 +112,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 buildSmileIcon(),
                 Text(
                   '\nПривет!',
-                  textScaleFactor: 1.3, textAlign: TextAlign.center,
+                  textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 10),
                 Text(
                     'Я понимаю такие команды:',
-                    textScaleFactor: 1.3, textAlign: TextAlign.center
+                    textAlign: TextAlign.center
                 ),
                 SizedBox(height: 10,),
                 Row(
@@ -124,56 +133,65 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 ),
                 SizedBox(height: 12,),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('"Проиграл"', style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 24
-                    ),),
-                    Text(' - игрок выбывает,', style: TextStyle(
-                        fontSize: 18
-                    ),),
-                  ],
-                ),
-                SizedBox(height: 12,),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('"Новый игрок"', style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 24
-                    ),),
-                    Text(' - плюс игрок,', style: TextStyle(
-                        fontSize: 18
-                    ),),
-                  ],
-                ),
-                SizedBox(height: 12,),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  //mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('"А ну повтори!"', style: TextStyle(
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('"Проиграл"', style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 24
-                    ),),
-                    Text(' - повторить задание', style: TextStyle(
-                        fontSize: 18
-                    ),),
-                  ],
+                      ),),
+                      Text(' - игрок выбывает,', style: TextStyle(
+                          fontSize: 18
+                      ),),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 12,),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('"Новый игрок"', style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24
+                      ),),
+                      Text(' - плюс игрок,', style: TextStyle(
+                          fontSize: 18
+                      ),),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 12,),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    //alignment: WrapAlignment.center,
+                    //mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('"А ну повтори!"', style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24
+                      ),),
+                      Text(' - повторить задание', style: TextStyle(
+                          fontSize: 18
+                      ),),
+                    ],
+                  ),
                 ),
                 SizedBox(height: 18),
                 Text(
                     'Для начала игры задай количество игроков и нажми "Старт"!',
-                    textScaleFactor: 1.3, textAlign: TextAlign.center
+                    textAlign: TextAlign.center
                 ),
-                SizedBox(height: 20),
+                SizedBox(height: 12),
                 Text('Игроков:',
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 15),
+                SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -194,7 +212,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     SizedBox(width: 15,),
                     Container(
                       padding: EdgeInsets.all(10),
-                      child: Text('$numPlayers', textScaleFactor: 2.2,),
+                      child: Text('$numPlayers', style: TextStyle(fontSize: 32),),
                     ),
                     SizedBox(width: 15,),
                     Container(
@@ -212,11 +230,12 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   ],
                 ),
-                SizedBox(height: 20),
+                SizedBox(height: 14),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
                   onPressed: (){
                     print('start with $numPlayers');
+                    isStarted = true;
                     goToStartGamePage();
                   },
                   child: Text('Старт!',
