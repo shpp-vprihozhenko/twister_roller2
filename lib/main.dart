@@ -3,6 +3,7 @@ import 'package:tw_roller2/About.dart';
 import 'GameLoopPage.dart';
 import 'package:flutter/material.dart';
 import 'globals.dart';
+import 'set_user_names.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,10 +35,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-
-  int numPlayers = 3;
   bool speakingMode = false;
-
   bool showMic = false;
   double level=0;
   bool isStarted = false;
@@ -46,9 +44,11 @@ class _MyHomePageState extends State<MyHomePage> {
   initState() {
     super.initState();
     initTtsAndSttAndFirstSpeech();
+    _getSharedPrefs();
   }
 
   void initTtsAndSttAndFirstSpeech() async {
+    initSTT();
     await initTts();
     await firstSpeech();
   }
@@ -85,16 +85,13 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         backgroundColor: Colors.blue[300],
         title: Text(widget.title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
-        leading: ElevatedButton(
+        leading: IconButton(
           onPressed: (){
             Navigator.push(context,
                 MaterialPageRoute(builder: (context) => About())
             );
           },
-          child: Text('?', style: TextStyle(
-            color: Colors.blue,
-            fontSize: 24,
-          ),),
+          icon: Icon(Icons.help, size: 36,),
         ),
       ),
       body: Container(
@@ -246,7 +243,58 @@ class _MyHomePageState extends State<MyHomePage> {
                       )
                   ),
                 ),
-                SizedBox(height: 10,),
+                SizedBox(height: 30),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue[100]),
+                  onPressed: _setUserNames,
+                  child: Text('указать имена игроков', textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.pink,
+                        fontSize: 24,
+                        //fontWeight: FontWeight.bold
+                      )
+                  ),
+                ),
+                SizedBox(height: 20,),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Таймер: '),
+                    Switch(value: isTimer, onChanged: (newVal){
+                      isTimer = !isTimer;
+                      prefs.setBool('isTimer', isTimer);
+                      setState(() {});
+                    }),
+                    if (isTimer) Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(width: 30,),
+                        IconButton(
+                          onPressed: (){
+                            timerSec-=5;
+                            if (timerSec<=5) {
+                              timerSec = 5;
+                            }
+                            prefs.setInt('timerSec', timerSec);
+                            setState(() {});
+                          }, icon: Icon(Icons.exposure_minus_1),
+                          style: IconButton.styleFrom(backgroundColor: Colors.greenAccent[100]),
+                        ),
+                        Text('$timerSec сек.', style: TextStyle(fontSize: 24),),
+                        IconButton(
+                          onPressed: (){
+                            timerSec+=5;
+                            prefs.setInt('timerSec', timerSec);
+                            setState(() {});
+                          },
+                          icon: Icon(Icons.exposure_plus_1),
+                          style: IconButton.styleFrom(backgroundColor: Colors.greenAccent[200]),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+                SizedBox(height: 40,),
               ],
             ),
           ),
@@ -272,9 +320,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   goToStartGamePage() {
+    flutterTts.stop();
     print('start game for $numPlayers');
     Navigator.push(context,
-        MaterialPageRoute(builder: (context) => GameLoopPage(numPlayers))
+        MaterialPageRoute(builder: (context) => GameLoopPage())
     ).then((result) async {
       print('cb from push');
     });
@@ -284,5 +333,24 @@ class _MyHomePageState extends State<MyHomePage> {
   void dispose() {
     flutterTts.stop();
     super.dispose();
+  }
+
+  void _setUserNames() async {
+    await Navigator.push(context,
+        MaterialPageRoute(builder: (context) => SetUserNames())
+    );
+    setState(() {});
+  }
+
+  void _getSharedPrefs() async {
+    await initSharedPrefs();
+    users = prefs.getStringList('users') ?? [];
+    print('got users $users');
+    isTimer = prefs.getBool('isTimer') ?? false;
+    timerSec = prefs.getInt('timerSec') ?? timerSec;
+    if (users.isNotEmpty) {
+      numPlayers = users.length;
+    }
+    setState(() {});
   }
 }

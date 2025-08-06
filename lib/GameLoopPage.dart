@@ -14,23 +14,16 @@ import 'globals.dart';
 показ картинок -
 */
 
-
-bool isListening = false;
-
 class GameLoopPage extends StatefulWidget {
-  final numPlayers;
-  GameLoopPage(this.numPlayers);
+  GameLoopPage();
 
   @override
-  _GameLoopPageState createState() => _GameLoopPageState(numPlayers);
+  _GameLoopPageState createState() => _GameLoopPageState();
 }
 
 class _GameLoopPageState extends State<GameLoopPage> {
-  int numPlayers;
   bool isFound = false;
-
-  _GameLoopPageState(this.numPlayers);
-
+  _GameLoopPageState();
   double picSize = 200.0;
 //  List <Color> colorsList = [Colors.green, Colors.blue, Colors.red, Colors.yellow];
 //  List <String> imgList = ['leftFoot.gif', 'rightFoot.gif', 'leftHand.gif', 'rightHand.gif'];
@@ -55,7 +48,6 @@ class _GameLoopPageState extends State<GameLoopPage> {
   int playerNumber = 1;
   String playerTask = '';
 
-  final SpeechToText speech = SpeechToText();
   bool showMic = false;//, isListening = false;
   double level=0;
   var rng = new Random();
@@ -65,11 +57,13 @@ class _GameLoopPageState extends State<GameLoopPage> {
   List <Widget> toScroll = [];
   double lengthToScroll = 0;
 
+  var backCounter = timerSec;
+
   @override
   void initState() {
-    initTtsAndStt();
     super.initState();
     Future.delayed(const Duration(milliseconds: refreshPeriodMS), randomizerLoop);
+    if (isTimer) Future.delayed(const Duration(seconds: 1), _changeBackCounter);
     _periodical();
   }
 
@@ -104,8 +98,6 @@ class _GameLoopPageState extends State<GameLoopPage> {
   void dispose() {
     flutterTts.stop();
     speech.stop();
-    speech.errorListener = null;
-    speech.statusListener = null;
     super.dispose();
   }
 
@@ -120,7 +112,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
       Future.delayed(const Duration(milliseconds: refreshPeriodMS), randomizerLoop);
     } else {
       //Future.delayed(const Duration(milliseconds: refreshPeriodMS+100), (){
-        startSpeakAndListen(_newCount);
+        _startSpeakAndListen(_newCount);
       //});
     }
     setState(() {
@@ -128,53 +120,35 @@ class _GameLoopPageState extends State<GameLoopPage> {
     });
   }
 
-  startSpeakAndListen(_newCount) async {
-    print('startSpeakAndListenMode');
+  _startSpeakAndListen(_newCount) async {
+    print('startSpeakAndListenMode $_newCount');
     numLoop = 0;
-    setState(() {
-      //playerTask = bodyParts[_newCount] + ' на ' + colorNames[_newColorCount] + '!';
-      playerTask = fullImgListNames[_newCount] + '!';
-    });
+    playerTask = fullImgListNames[_newCount] + '!';
+    setState(() {});
+    print('playerTask $playerTask');
     if (speech.isListening) {
-      speech.stop();
+      await speech.stop();
     }
+    print('speak new task $playerTask');
     await Future.delayed(Duration(milliseconds: 300));
-    await _speakSync('Игрок № $playerNumber');
+    if (users.isNotEmpty) {
+      await _speakSync('${users[playerNumber-1]}');
+    } else {
+      await _speakSync('Игрок № $playerNumber');
+    }
     await _speakSync(playerTask);
-    startListening();
+    backCounter = timerSec;
+    setState(() {});
+    _startListening();
   }
 
-  void initTtsAndStt() async {
-    await initSTT();
-  }
-
-  initSTT() async {
-    bool hasSpeech = await speech.initialize(
-        onError: errorListener, onStatus: statusListener);
-    print('initSpeechState hasSpeech $hasSpeech');
-  }
-
-  void errorListener(SpeechRecognitionError error) {
-    print("Received GLP error status: $error, listening: ${speech.isListening}");
-    setState(() {
-      isListening = false;
-      print('isListening $isListening');
-    });
-    Future.delayed(Duration(milliseconds: 300), startListening);
-  }
-
-  void statusListener(String status) {
-    //print("Received GLP listener status: $status, listening: ${speech.isListening}");
-  }
-
-  void startListening() async {
+  void _startListening() async {
     print('startListening');
-    await Future.delayed(Duration(milliseconds: 300));
     isListening = true;
     isFound = false;
-    setState(() {
-      showMic = true;
-    });
+    showMic = true;
+    setState(() {});
+    await Future.delayed(Duration(milliseconds: 200));
     speech.listen(
       onResult: resultListener,
       // listenFor: Duration(seconds: 60),
@@ -258,7 +232,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
       } else {
         print('no keywords. StartListening again.');
         print(recognizedWords);
-        startListening();
+        _startListening();
       }
     }
   }
@@ -271,11 +245,15 @@ class _GameLoopPageState extends State<GameLoopPage> {
     setState(() {});
     print('start speaking');
     await Future.delayed(Duration(milliseconds: 300));
-    await _speakSync('Игрок № $playerNumber');
+    if (users.isNotEmpty) {
+      await _speakSync('${users[playerNumber-1]}');
+    } else {
+      await _speakSync('Игрок № $playerNumber');
+    }
     print('start speaking2');
     await _speakSync(playerTask);
     print('ok, starting');
-    startListening();
+    _startListening();
   }
 
   Future<void> _speakSync(String _text) async {
@@ -284,8 +262,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
 
   @override
   Widget build(BuildContext context) {
-    int prevImgIdx = _curPicIdx==0? fullImgList.length-1 : _curPicIdx-1;
-    //print('prevImgIdx $prevImgIdx cur $_curPicIdx');
+    glSetState = setState;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue[300],
@@ -304,7 +281,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
             SizedBox(height: 12,),
             Text('Задание для игрока', style: TextStyle(fontSize: 24), textAlign: TextAlign.center,),
             SizedBox(height: 8,),
-            Text('№ $playerNumber',
+            Text(users.isEmpty? '№ $playerNumber':'${users[playerNumber-1]}',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 36,
@@ -349,7 +326,6 @@ class _GameLoopPageState extends State<GameLoopPage> {
                     ),
                   );
                 }
-                //return ClipRect(child: SlideTransition(child: child, position: offsetAnimation));
               },
               child: Container(
                 key: ValueKey<int>(_count),
@@ -358,26 +334,6 @@ class _GameLoopPageState extends State<GameLoopPage> {
               ),
             ),
             SizedBox(height: 8,),
-            // Row(
-            //   mainAxisAlignment: MainAxisAlignment.center,
-            //   children: [
-            //     Container(
-            //       width: picSize*1.1, height: picSize*1.1,
-            //       child: Stack(
-            //         children: [
-            //           Positioned(
-            //             top: 0, left: -picSize+_offset,
-            //             child: Image.asset('images/${fullImgList[prevImgIdx]}', width: picSize, height: picSize,)
-            //           ),
-            //           Positioned(
-            //             top: 0, left: _offset,
-            //             child: Image.asset('images/${fullImgList[_curPicIdx]}', width: picSize, height: picSize,)
-            //           ),
-            //         ],
-            //       ),
-            //     ),
-            //   ],
-            // ),
             showMic?
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -389,15 +345,33 @@ class _GameLoopPageState extends State<GameLoopPage> {
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 26,),
-                  Center(
-                    child: GestureDetector(
-                        onTap: () async {
-                          await speech.stop();
-                          await Future.delayed(Duration(milliseconds: 300));
-                          startListening();
-                        },
-                        child: ActiveMic()  //Icon(Icons.mic, color: Colors.blueAccent, size: 50,)
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      GestureDetector(
+                          onTap: () async {
+                            await speech.stop();
+                            await Future.delayed(Duration(milliseconds: 300));
+                            _startListening();
+                          },
+                          child: ActiveMic()  //Icon(Icons.mic, color: Colors.blueAccent, size: 50,)
+                      ),
+                      if (isTimer && backCounter>0) Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(width: 30,),
+                          ClipOval(
+                            child: Container(
+                              color: Colors.yellowAccent[200],
+                              padding: EdgeInsets.all(15),
+                              child: Text('$backCounter', style: TextStyle(
+                                fontSize: 24
+                              ),)
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   SizedBox(height: 26,),
                   ElevatedButton(
@@ -495,12 +469,16 @@ class _GameLoopPageState extends State<GameLoopPage> {
             )
         )
     );
-    startListening();
+    _startListening();
     //randomizerLoop();
   }
 
   _startNextPlayerLoop() async {
-    await speech.stop();
+    print('_startNextPlayerLoop');
+    if (speech.isListening) {
+      await speech.stop();
+    }
+    await Future.delayed(Duration(milliseconds: 200));
     playerNumber++;
     if (playerNumber > numPlayers) {
       playerNumber = 1;
@@ -522,6 +500,25 @@ class _GameLoopPageState extends State<GameLoopPage> {
             padding: EdgeInsets.only(top: 15), child: Center(child: Text(msg)))
       ],
     );
+  }
+
+  FutureOr _changeBackCounter() {
+    backCounter--;
+    setState(() {});
+    if (backCounter == 0) {
+      speech.stop();
+      isListening = false;
+      _nextByTimer();
+    }
+    Future.delayed(const Duration(seconds: 1), _changeBackCounter);
+  }
+
+  _nextByTimer() async {
+    print('Увы. Следующий игрок.');
+    speech.stop();
+    flutterTts.stop();
+    await speak('Следующий игрок');
+    _startNextPlayerLoop();
   }
 
 }
