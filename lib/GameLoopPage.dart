@@ -1,8 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 import 'dart:async';
 import 'globals.dart';
 
@@ -21,129 +19,158 @@ class GameLoopPage extends StatefulWidget {
   _GameLoopPageState createState() => _GameLoopPageState();
 }
 
-class _GameLoopPageState extends State<GameLoopPage> {
+class _GameLoopPageState extends State<GameLoopPage>
+    with SingleTickerProviderStateMixin {
+
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  int currentIndex = 0;
+  int targetIndex = 0;
+  int totalSteps = 0;
+
   bool isFound = false;
-  _GameLoopPageState();
   double picSize = 200.0;
 //  List <Color> colorsList = [Colors.green, Colors.blue, Colors.red, Colors.yellow];
 //  List <String> imgList = ['leftFoot.gif', 'rightFoot.gif', 'leftHand.gif', 'rightHand.gif'];
 //  List <String> bodyParts = ['Левая нога', 'Правая нога', 'Левая рука', 'Правая рука'];
 //  List <String> colorNames = ['Зелёный', 'Синий', 'Красный', 'Жёлтый'];
-  List <String> fullImgList = [
-    'greenLeftFoot.gif', 'greenRightFoot.gif', 'greenLeftHand.gif', 'greenRightHand.gif',
-    'blueLeftFoot.gif', 'blueRightFoot.gif', 'blueLeftHand.gif', 'blueRightHand.gif',
-    'redLeftFoot.gif', 'redRightFoot.gif', 'redLeftHand.gif', 'redRightHand.gif',
-    'yellowLeftFoot.gif', 'yellowRightFoot.gif', 'yellowLeftHand.gif', 'yellowRightHand.gif',
-  ];
-  List <String> fullImgListNames = [
-    'Левая нога на Зелёный', 'Правая нога на Зелёный', 'Левая рука на Зелёный', 'Правая рука на Зелёный',
-    'Левая нога на Синий', 'Правая нога на Синий', 'Левая рука на Синий', 'Правая рука на Синий',
-    'Левая нога на Красный', 'Правая нога на Красный', 'Левая рука на Красный', 'Правая рука на Красный',
-    'Левая нога на Жёлтый', 'Правая нога на Жёлтый', 'Левая рука на Жёлтый', 'Правая рука на Жёлтый',
-  ];
-  int _count = 0, _lastKey = 0; //_colorCount = 0,
-  static const int refreshPeriodMS = 300;
+
+  // List <String> fullImgListNames = [
+  //   'Левая нога на Зелёный', 'Правая нога на Зелёный', 'Левая рука на Зелёный', 'Правая рука на Зелёный',
+  //   'Левая нога на Синий', 'Правая нога на Синий', 'Левая рука на Синий', 'Правая рука на Синий',
+  //   'Левая нога на Красный', 'Правая нога на Красный', 'Левая рука на Красный', 'Правая рука на Красный',
+  //   'Левая нога на Жёлтый', 'Правая нога на Жёлтый', 'Левая рука на Жёлтый', 'Правая рука на Жёлтый',
+  // ];
+
   int numLoopsToFindResult = 15, numLoop = 0;
   bool speakingMode = false;
   int playerNumber = 1;
   String playerTask = '';
 
-  bool showMic = false;//, isListening = false;
+  bool showMic = false;
   double level=0;
   var rng = new Random();
-  double _offset = 0;
-  int _curPicIdx = 0;
 
   List <Widget> toScroll = [];
   double lengthToScroll = 0;
 
-  var backCounter = timerSec;
+  int backTimerCounter = timerSec;
+  String timerTask = '';
+
+  bool isPlayerRemoved = false;
+  bool isNewLoop = false, isFirstSpin = true;
+  BodyPos currentTask = BodyPos('','');
+  bool isSpinning = false, isFinished = false;
+
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: refreshPeriodMS), randomizerLoop);
-    if (isTimer) Future.delayed(const Duration(seconds: 1), _changeBackCounter);
-    _periodical();
+    _controller = AnimationController(vsync: this, duration: Duration(milliseconds: 2000));
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic)
+      ..addListener(() {
+        setState(() {});
+      })
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          isSpinning = false;
+          currentIndex = targetIndex % bodyPositions.length;
+          printD('currentIndex $currentIndex');
+          printD(bodyPositions[3]);
+          currentTask = bodyPositions[3];
+          playerTask = currentTask.name;
+          showMic = true;
+          setState(() {});
+          _startSpeakAndListen();
+        }
+      });
+
+    spinTo(3);
+
   }
 
-  _startScrollToIdx(int idx) {
-    toScroll = []; lengthToScroll = 0;
-    lengthToScroll = fullImgList.length*picSize;
-    for (int index = 0; index < fullImgList.length; index++) {
-      String fName = fullImgList[index];
-      toScroll.add(
-        Positioned(
-          top: 0, left: index*picSize,
-          child: Image.asset(fName, width: picSize, height: picSize,)
-        )
-      );
-    }
-  }
+  void spinTo(int index) {
+    bodyPositions.shuffle();
+    int steps = bodyPositions.length + (index - currentIndex); // 12 steps + offset to target
+    if (steps < 0) steps += bodyPositions.length; // wrap around
+    totalSteps = steps;
+    targetIndex = (currentIndex + steps) % bodyPositions.length;
 
-  _periodical(){
-    _offset += picSize / (1000 / 30) * 3;
-    if (_offset >= picSize) {
-      _offset = 0;
-      _curPicIdx--;
-      if (_curPicIdx < 0) {
-        _curPicIdx = fullImgList.length-1;
-      }
-    }
-    setState(() {});
-    Future.delayed(const Duration(milliseconds: 30), _periodical);
+    _controller.reset();
+    _animation = Tween<double>(begin: 0, end: steps.toDouble())
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic))
+      ..addListener(() => setState(() {}));
+    isSpinning = true;
+    _controller.forward();
   }
 
   @override
   void dispose() {
     flutterTts.stop();
     speech.stop();
+    _controller.dispose();
     super.dispose();
   }
 
-  randomizerLoop(){
-    print('randomizerLoop');
-    int _newCount = rng.nextInt(16);
-    //print('got new count $_newCount');
-
-    numLoop++;
-    _lastKey = _count;
-    if (numLoop < numLoopsToFindResult) {
-      Future.delayed(const Duration(milliseconds: refreshPeriodMS), randomizerLoop);
-    } else {
-      //Future.delayed(const Duration(milliseconds: refreshPeriodMS+100), (){
-        _startSpeakAndListen(_newCount);
-      //});
+  Widget _buildCard(int index, double offset) {
+    double scale = 1.25 - (offset.abs() * 0.5);
+    double opacity = (1 - (offset.abs() * 0.5));
+    if (opacity < 0 || opacity > 1) {
+      return SizedBox();
     }
-    setState(() {
-      _count = _newCount;
-    });
+    double perspective = offset * 0.4;
+
+    return Opacity(
+      opacity: opacity,
+      child: Transform.translate(
+        offset: Offset(offset * 150, 0), // move horizontally
+        child: Transform.scale(
+          scale: scale,
+          child: Transform(
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001) // perspective
+              ..rotateY(perspective),
+            alignment: Alignment.center,
+            child: Image.asset('images/${bodyPositions[index].img}', width: 250, height: 300,),
+          ),
+        ),
+      ),
+    );
   }
 
-  _startSpeakAndListen(_newCount) async {
-    print('startSpeakAndListenMode $_newCount');
+  _startSpeakAndListen() async {
+    if (isFinished) {
+      printD('no _startSpeakAndListen, game finished');
+      return;
+    }
+    printD('startSpeakAndListenMode $currentTask');
     numLoop = 0;
-    playerTask = fullImgListNames[_newCount] + '!';
+    playerTask = currentTask.name + '!';
     setState(() {});
-    print('playerTask $playerTask');
+    printD('playerTask $playerTask');
     if (speech.isListening) {
       await speech.stop();
     }
-    print('speak new task $playerTask');
+    flutterTts.stop();
+    printD('speak new task $playerTask');
     await Future.delayed(Duration(milliseconds: 300));
     if (users.isNotEmpty) {
-      await _speakSync('${users[playerNumber-1]}');
+      await speak('${users[playerNumber-1]}');
     } else {
-      await _speakSync('Игрок № $playerNumber');
+      await speak('Игрок № $playerNumber');
     }
-    await _speakSync(playerTask);
-    backCounter = timerSec;
+    await speak(playerTask);
     setState(() {});
+    if (isTimer) {
+      backTimerCounter = timerSec;
+      timerTask = '$playerTask$playerNumber';
+      Future.delayed(Duration(seconds: 1), _updateBackTimer);
+    }
     _startListening();
   }
 
   void _startListening() async {
-    print('startListening');
+    printD('startListening');
     isListening = true;
     isFound = false;
     showMic = true;
@@ -171,9 +198,9 @@ class _GameLoopPageState extends State<GameLoopPage> {
     print ('got recognizedWords $recognizedWords result.finalResult ${result.finalResult}');
 
     if (!result.finalResult) {
-      print('not final result \n $recognizedWords');
+      printD('not final result \n $recognizedWords');
       if (recognizedWords.contains('ПОВТОРИ') || recognizedWords.contains('ПОВТОРИМ') ) {
-        print('found for ПОВТОРИ');
+        printD('found for ПОВТОРИ');
         isListening = false;
         speech.stop();
         isFound = true;
@@ -181,7 +208,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
         //repeatAndStartListeningAgain();
         return;
       } else if (recognizedWords.indexOf('ПРОИГРАЛ') > -1) {
-        print('found for ПРОИГРАЛ');
+        printD('found for ПРОИГРАЛ');
         speech.stop();
         isListening = false;
         setState(() {});
@@ -189,7 +216,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
         isFound = true;
         return;
       } else if (recognizedWords.contains('НОВЫЙ') && recognizedWords.contains('ИГРОК')) {
-        print('found for НОВЫЙ ИГРОК');
+        printD('found for НОВЫЙ ИГРОК');
         speech.stop();
         isListening = false;
         setState(() {});
@@ -200,7 +227,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
       recognizedWords.forEach((cmd) {
         if (cmd == 'OK' || cmd == 'О\'КЕ' || cmd == 'ОКЕЙ' || cmd == 'ДАЛЬШЕ' || cmd == 'СЛЕДУЮЩИЙ') {
           isFound = true;
-          print('found for $cmd');
+          printD('found for $cmd');
         }
       });
       if (isFound) {
@@ -218,51 +245,46 @@ class _GameLoopPageState extends State<GameLoopPage> {
           || recognizedWords.indexOf('ОКЕЙ') > -1
           || recognizedWords.indexOf('ДАЛЬШЕ') > -1 || recognizedWords.indexOf('ОК') > -1
           || recognizedWords.indexOf('СЛЕДУЮЩИЙ') > -1) {
-        print('start new random loop');
+        printD('start new random loop');
         _startNextPlayerLoop();
-      } else if (recognizedWords.contains('НОВЫЙ') && recognizedWords.contains('ИГРОК')) {
-        print('НОВ ИГР final');
-        _playerAdd();
       } else if (recognizedWords.contains('ПРОИГРАЛ')) {
-        print('ПРОИГРАЛ');
+        printD('ПРОИГРАЛ');
         _playerLeft();
       } else if (recognizedWords.contains('ПОВТОРИ') || recognizedWords.contains('ПОВТОРИМ')) {
-        print('repeat final');
+        printD('repeat final');
         repeatAndStartListeningAgain();
       } else {
-        print('no keywords. StartListening again.');
-        print(recognizedWords);
+        printD('no keywords. StartListening again.');
+        printD(recognizedWords);
         _startListening();
       }
     }
   }
 
   repeatAndStartListeningAgain() async {
-    print('repeatAndStartListeningAgain');
-    print('stop speech');
+    printD('repeatAndStartListeningAgain');
+    printD('stop speech');
     await speech.stop();
     isListening = false;
     setState(() {});
-    print('start speaking');
+    printD('start speaking');
     await Future.delayed(Duration(milliseconds: 300));
     if (users.isNotEmpty) {
-      await _speakSync('${users[playerNumber-1]}');
+      await speak('${users[playerNumber-1]}');
     } else {
-      await _speakSync('Игрок № $playerNumber');
+      await speak('Игрок № $playerNumber');
     }
-    print('start speaking2');
-    await _speakSync(playerTask);
-    print('ok, starting');
+    printD('start speaking2');
+    await speak(playerTask);
+    printD('ok, starting');
     _startListening();
-  }
-
-  Future<void> _speakSync(String _text) async {
-    await speak(_text);
   }
 
   @override
   Widget build(BuildContext context) {
     glSetState = setState;
+    double progress = _animation.value;
+    double fractionalIndex = (currentIndex + progress) % bodyPositions.length;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue[300],
@@ -281,7 +303,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
             SizedBox(height: 12,),
             Text('Задание для игрока', style: TextStyle(fontSize: 24), textAlign: TextAlign.center,),
             SizedBox(height: 8,),
-            Text(users.isEmpty? '№ $playerNumber':'${users[playerNumber-1]}',
+            if (playerNumber>0 && playerNumber<=users.length) Text(users.isEmpty? '№ $playerNumber':'${users[playerNumber-1]}',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 36,
@@ -289,48 +311,18 @@ class _GameLoopPageState extends State<GameLoopPage> {
               ),
             ),
             SizedBox(height: 8,),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: refreshPeriodMS),
-              transitionBuilder: (Widget child, Animation<double> animation) {
-                //return ScaleTransition(child: child, scale: animation);
-                //return FadeTransition(child: child, opacity: animation);
-                //return RotationTransition(child: child, turns: animation);
-                //final offsetAnimation = Tween<Offset>(begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0)).animate(animation);
-                //return ClipRect(child: SlideTransition(child: child, position: offsetAnimation));
-
-                final inAnimation =
-                  Tween<Offset>(begin: Offset(1.0, 0.0), end: Offset(0.0, 0.0))
-                      .animate(animation);
-                final outAnimation =
-                  Tween<Offset>(begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0))
-                      .animate(animation);
-
-                if (child.key == ValueKey(_lastKey)) {
-                  return ClipRect(
-                    child: SlideTransition(
-                      position: inAnimation,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: child,
-                      ),
-                    ),
-                  );
-                } else {
-                  return ClipRect(
-                    child: SlideTransition(
-                      position: outAnimation,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: child,
-                      ),
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                key: ValueKey<int>(_count),
-                // width: picSize, height: picSize,
-                  child: Image.asset('images/${fullImgList[_count]}', width: picSize, height: picSize,)
+            SizedBox(
+              width: 400,
+              height: 300,
+              child: Stack(
+                alignment: Alignment.center,
+                children: List.generate(bodyPositions.length, (i) {
+                  double offset = (i - fractionalIndex);
+                  // Wrap around to keep cards close
+                  if (offset > bodyPositions.length / 2) offset -= bodyPositions.length;
+                  if (offset < -bodyPositions.length / 2) offset += bodyPositions.length;
+                  return _buildCard(i, offset);
+                }),
               ),
             ),
             SizedBox(height: 8,),
@@ -356,7 +348,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
                           },
                           child: ActiveMic()  //Icon(Icons.mic, color: Colors.blueAccent, size: 50,)
                       ),
-                      if (isTimer && backCounter>0) Row(
+                      if (isTimer && backTimerCounter > 0) Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(width: 30,),
@@ -364,7 +356,7 @@ class _GameLoopPageState extends State<GameLoopPage> {
                             child: Container(
                               color: Colors.yellowAccent[200],
                               padding: EdgeInsets.all(15),
-                              child: Text('$backCounter', style: TextStyle(
+                              child: Text('$backTimerCounter', style: TextStyle(
                                 fontSize: 24
                               ),)
                             ),
@@ -406,20 +398,6 @@ class _GameLoopPageState extends State<GameLoopPage> {
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Text('Новый игрок',
-                        style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white
-                        ),
-                      ),
-                    ),
-                    onPressed: _playerAdd,
-                  ),
-                  SizedBox(height: 10,),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
                       child: Text('А ну повтори!',
                         style: TextStyle(
                             fontSize: 18,
@@ -438,14 +416,26 @@ class _GameLoopPageState extends State<GameLoopPage> {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.rotate_right),
+        onPressed: () {
+          // Example: spin to card index 3
+          spinTo(3);
+          printD('bodyPositions ${bodyPositions[3]}');
+        },
+      ),
     );
   }
 
   _playerLeft(){
-    numPlayers --;
-    if (numPlayers<2) {
-      numPlayers = 2;
+    if (users.isNotEmpty) {
+      users.removeAt(playerNumber-1);
+      isPlayerRemoved = true;
+      if (playerNumber > users.length) {
+        playerNumber = 0;
+      }
     }
+    numPlayers = users.length;
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -454,29 +444,20 @@ class _GameLoopPageState extends State<GameLoopPage> {
             )
         )
     );
-    print('_playerLeft ok playerNumber $playerNumber numPlayers $numPlayers');
+    if (numPlayers == 1) {
+      _showVictoryAndExit();
+      return;
+    }
+    printD('_playerLeft ok playerNumber $playerNumber numPlayers $numPlayers');
     _startNextPlayerLoop();
   }
 
-  _playerAdd(){
-    speech.stop();
-    numPlayers ++;
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Количество игроков $numPlayers',
-              style: TextStyle(fontSize: 32),
-            )
-        )
-    );
-    _startListening();
-    //randomizerLoop();
-  }
-
   _startNextPlayerLoop() async {
-    print('_startNextPlayerLoop');
+    printD('_startNextPlayerLoop');
     if (speech.isListening) {
       await speech.stop();
+      showMic = false;
+      setState(() {});
     }
     await Future.delayed(Duration(milliseconds: 200));
     playerNumber++;
@@ -486,41 +467,52 @@ class _GameLoopPageState extends State<GameLoopPage> {
     setState(() {
       showMic = false;
       playerTask = '';
+      backTimerCounter = 0;
     });
     numLoop = 0;
-    randomizerLoop();
-  }
-
-  showAlertPage(String msg) {
-    showAboutDialog(
-      context: context,
-      applicationName: 'Alert',
-      children: <Widget>[
-        Padding(
-            padding: EdgeInsets.only(top: 15), child: Center(child: Text(msg)))
-      ],
-    );
-  }
-
-  FutureOr _changeBackCounter() {
-    backCounter--;
-    setState(() {});
-    if (backCounter == 0) {
-      speech.stop();
-      isListening = false;
-      _nextByTimer();
-    }
-    Future.delayed(const Duration(seconds: 1), _changeBackCounter);
+    isNewLoop = true;
+    spinTo(3);
   }
 
   _nextByTimer() async {
-    print('Увы. Следующий игрок.');
+    if (isSpinning) {
+      printD('spinning, wait');
+      return;
+    }
+    printD('Увы. Следующий игрок.');
     speech.stop();
-    flutterTts.stop();
+    await flutterTts.stop();
+    await Future.delayed(Duration(milliseconds: 300));
     await speak('Следующий игрок');
+    await Future.delayed(Duration(milliseconds: 500));
     _startNextPlayerLoop();
   }
+  
+  _updateBackTimer() async {
+    printD('_updateBackTimer');
+    if (timerTask != '$playerTask$playerNumber') {
+      printD('new task. No _updateBackTimer');
+      return;
+    }
+    backTimerCounter--;
+    printD('_updateBackTimer $backTimerCounter');
+    setState(() {});
+    if (backTimerCounter > 0) {
+      Future.delayed(Duration(seconds: 1), _updateBackTimer);
+      return;
+    }
+    _nextByTimer();
+  }
 
+  void _showVictoryAndExit() async {
+    speech.stop();
+    showMic = false;
+    isFinished = true;
+    setState(() {});
+    await showAlertPage(context, 'Ура! \n ${users.first} победил!');
+    users = prefs.getStringList('users') ?? [];
+    Navigator.pop(context);
+  }
 }
 
 

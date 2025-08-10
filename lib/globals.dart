@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
@@ -13,7 +15,47 @@ bool isListening = false;
 late SharedPreferences prefs;
 var glSetState;
 bool isTimer = false;
-int timerSec = 30;
+int timerSec = 15;
+
+List <String> fullImgList = [
+  'greenLeftFoot.gif', 'greenRightFoot.gif', 'greenLeftHand.gif', 'greenRightHand.gif',
+  'blueLeftFoot.gif', 'blueRightFoot.gif', 'blueLeftHand.gif', 'blueRightHand.gif',
+  'redLeftFoot.gif', 'redRightFoot.gif', 'redLeftHand.gif', 'redRightHand.gif',
+  'yellowLeftFoot.gif', 'yellowRightFoot.gif', 'yellowLeftHand.gif', 'yellowRightHand.gif',
+];
+
+List <BodyPos> bodyPositions = [];
+
+glFillBodyPositions(){
+  bodyPositions.add(BodyPos('greenLeftFoot.gif', 'Левая нога на Зелёный'));
+  bodyPositions.add(BodyPos('greenRightFoot.gif', 'Правая нога на Зелёный'));
+  bodyPositions.add(BodyPos('greenLeftHand.gif', 'Левая рука на Зелёный'));
+  bodyPositions.add(BodyPos('greenRightHand.gif', 'Правая рука на Зелёный'));
+
+  bodyPositions.add(BodyPos('blueLeftFoot.gif', 'Левая нога на Синий'));
+  bodyPositions.add(BodyPos('blueRightFoot.gif', 'Правая нога на Синий'));
+  bodyPositions.add(BodyPos('blueLeftHand.gif', 'Левая рука на Синий'));
+  bodyPositions.add(BodyPos('blueRightHand.gif', 'Правая рука на Синий'));
+
+  bodyPositions.add(BodyPos('redLeftFoot.gif', 'Левая нога на Красный'));
+  bodyPositions.add(BodyPos('redRightFoot.gif', 'Правая нога на Красный'));
+  bodyPositions.add(BodyPos('redLeftHand.gif', 'Левая рука на Красный'));
+  bodyPositions.add(BodyPos('redRightHand.gif', 'Правая рука на Красный'));
+
+  bodyPositions.add(BodyPos('yellowLeftFoot.gif', 'Левая нога на Жёлтый'));
+  bodyPositions.add(BodyPos('yellowRightFoot.gif', 'Правая нога на Жёлтый'));
+  bodyPositions.add(BodyPos('yellowLeftHand.gif', 'Левая рука на Жёлтый'));
+  bodyPositions.add(BodyPos('yellowRightHand.gif', 'Правая рука на Жёлтый'));
+}
+
+class BodyPos {
+  String name='', img='';
+  BodyPos(this.img, this.name);
+  @override
+  String toString() {
+    return '$name $img';
+  }
+}
 
 initSharedPrefs() async {
   prefs = await SharedPreferences.getInstance();
@@ -22,7 +64,7 @@ initSharedPrefs() async {
 initTts() async {
   flutterTts = FlutterTts();
   if (Platform.isIOS) {
-    // print('isIOS!');
+    // printD('isIOS!');
     // await flutterTts.setSharedInstance(true);
     // await flutterTts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback,
     //     [IosTextToSpeechAudioCategoryOptions.mixWithOthers,],
@@ -40,13 +82,13 @@ initTts() async {
     );
   } else {
     String defEng = await flutterTts.getDefaultEngine;
-    print('android with defEng $defEng');
+    printD('android with defEng $defEng');
     if (!defEng.contains('google')) {
       var engines = await flutterTts.getEngines;
-      print('engines $engines');
+      printD('engines $engines');
       int gIdx = engines.indexWhere((element) => element.toString().contains('google'));
       await flutterTts.setEngine(engines[gIdx]);
-      print('def enginr set to ${engines[gIdx]}');
+      printD('def enginr set to ${engines[gIdx]}');
     }
   }
   await flutterTts.awaitSpeakCompletion(true);
@@ -65,14 +107,44 @@ Future<void> speak(String text) async {
 initSTT() async {
   bool hasSpeech = await speech.initialize(
       onError: errorListener, onStatus: statusListener);
-  print('initSpeechState hasSpeech $hasSpeech');
+  printD('initSpeechState hasSpeech $hasSpeech');
 }
 
 void errorListener(SpeechRecognitionError error) {
-  print('got STT error $error');
+  printD('got STT error $error');
   isListening = false; glSetState((){});
 }
 
 void statusListener(String status) {
-  print("Received listener status: $status, listening: ${speech.isListening}");
+  printD("Received listener status: $status, listening: ${speech.isListening}");
+}
+
+printD(s) {
+  if (kDebugMode) {
+    print(s);
+  }
+}
+
+showAlertPage(context, String msg, [double tsf=1]) async {
+  await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SelectableText(msg, textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                ),
+              ),
+              SizedBox(height: 30,),
+              ElevatedButton(onPressed: (){
+                Navigator.pop(context);
+              }, child: Text('OK')),
+            ],
+          ),
+        );
+      }
+  );
 }

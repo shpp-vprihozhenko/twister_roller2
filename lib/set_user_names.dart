@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
+import 'GameLoopPage.dart';
 import 'globals.dart';
 
 class SetUserNames extends StatefulWidget {
@@ -13,10 +14,11 @@ class _SetUserNamesState extends State<SetUserNames> {
   bool showMic = false;
   int curUserIndex = -1;
   TextEditingController tecName = TextEditingController();
+  bool isFound = false;
 
   @override
   void initState() {
-    print('$numPlayers');
+    printD('$numPlayers');
     super.initState();
     if (users.isEmpty) {
       for (int i=0; i<numPlayers; i++) {
@@ -74,17 +76,27 @@ class _SetUserNamesState extends State<SetUserNames> {
           ),
         ],
       ),
-      floatingActionButton: IconButton(
-        style: IconButton.styleFrom(backgroundColor: Colors.greenAccent[200]),
-        onPressed: _add, icon: Icon(Icons.add, size: 32,)),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            style: IconButton.styleFrom(backgroundColor: Colors.blueAccent[200]),
+            onPressed: _add, icon: Icon(Icons.add, size: 32,)),
+          SizedBox(height: 30,),
+          IconButton(
+            style: IconButton.styleFrom(backgroundColor: Colors.greenAccent[200]),
+            onPressed: _done, icon: Icon(Icons.done, size: 32,)),
+        ],
+      ),
     );
   }
 
   void _changeUserName(int index) async {
-    print('_changeUserName $index');
+    printD('_changeUserName $index');
     curUserIndex = index;
     await Future.delayed(Duration(milliseconds: 300));
     showMic = true; setState(() {});
+    isFound = false;
     speech.listen(
       onResult: resultListener,
       localeId: 'ru_RU', // en_US uk_UA ru_RU
@@ -93,7 +105,8 @@ class _SetUserNamesState extends State<SetUserNames> {
 
   void resultListener(SpeechRecognitionResult result) async {
     print ('got resultListener result $result');
-    if (!result.finalResult) {
+
+    if (isFound) {
       return;
     }
 
@@ -101,7 +114,14 @@ class _SetUserNamesState extends State<SetUserNames> {
     print ('got recognizedWords $recognizedWords result.finalResult ${result.finalResult}');
 
     users[curUserIndex] = recognizedWords[0];
+
+    if (users[curUserIndex].length >= 3) {
+      speech.stop();
+      isFound = true;
+    }
+
     _saveUsers();
+
     showMic = false;
     setState(() {});
   }
@@ -170,5 +190,11 @@ class _SetUserNamesState extends State<SetUserNames> {
 
   void _saveUsers() async {
     prefs.setStringList('users', users);
+  }
+
+  void _done() {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (context) => GameLoopPage())
+    );
   }
 }

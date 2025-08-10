@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:tw_roller2/About.dart';
 import 'GameLoopPage.dart';
 import 'package:flutter/material.dart';
 import 'globals.dart';
+import 'new_rotation.dart';
+import 'new_rotation1.dart';
 import 'set_user_names.dart';
 
 void main() {
@@ -44,6 +47,7 @@ class _MyHomePageState extends State<MyHomePage> {
   initState() {
     super.initState();
     initTtsAndSttAndFirstSpeech();
+    glFillBodyPositions();
     _getSharedPrefs();
   }
 
@@ -67,8 +71,6 @@ class _MyHomePageState extends State<MyHomePage> {
     await speak('Окей -- следующий игрок');
     if (isStarted) { return; }
     await speak('Проиграл -- игрок выбывает');
-    if (isStarted) { return; }
-    await speak('Новый игрок -- игрок добавляется');
     if (isStarted) { return; }
     await speak('"А ну повтори!" -- повторить задание');
     if (isStarted) { return; }
@@ -106,7 +108,16 @@ class _MyHomePageState extends State<MyHomePage> {
               shrinkWrap: true,
               padding: const EdgeInsets.all(10.0),
               children: <Widget>[
-                buildSmileIcon(),
+                GestureDetector(
+                  onTap: (){
+                    if (kDebugMode) {
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (context) => DrumCarousel())
+                      );
+                    }
+                  },
+                  child: buildSmileIcon()
+                ),
                 Text(
                   '\nПривет!',
                   textAlign: TextAlign.center,
@@ -130,53 +141,32 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 ),
                 SizedBox(height: 12,),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('"Проиграл"', style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24
-                      ),),
-                      Text(' - игрок выбывает,', style: TextStyle(
-                          fontSize: 18
-                      ),),
-                    ],
-                  ),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('"Проиграл"', style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24
+                    ),),
+                    Text(' - игрок выбывает,', style: TextStyle(
+                        fontSize: 18
+                    ),),
+                  ],
                 ),
                 SizedBox(height: 12,),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('"Новый игрок"', style: TextStyle(
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('"А ну повтори!"', style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 24
-                      ),),
-                      Text(' - плюс игрок,', style: TextStyle(
-                          fontSize: 18
-                      ),),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 12,),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    //alignment: WrapAlignment.center,
-                    //mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('"А ну повтори!"', style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24
-                      ),),
-                      Text(' - повторить задание', style: TextStyle(
-                          fontSize: 18
-                      ),),
-                    ],
-                  ),
+                    ),),
+                    Text(' - повторить задание', style: TextStyle(
+                        fontSize: 18
+                    ),),
+                  ],
                 ),
                 SizedBox(height: 18),
                 Text(
@@ -202,7 +192,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           });
                         },
                         tooltip: 'уменьшить',
-                        child: Icon(Icons.exposure_minus_1),
+                        child: Icon(Icons.remove),
                         heroTag: 'decrease',
                       ),
                     ),
@@ -219,9 +209,12 @@ class _MyHomePageState extends State<MyHomePage> {
                         onPressed: (){
                           setState(() {
                             numPlayers++;
+                            if (users.isNotEmpty && numPlayers > users.length) {
+                              users.add('Игрок номер $numPlayers');
+                            }
                           });
                         },
-                        child: Icon(Icons.exposure_plus_1),
+                        child: Icon(Icons.add),
                         heroTag: 'increase',
                       ),
                     ),
@@ -231,11 +224,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
                   onPressed: (){
-                    print('start with $numPlayers');
+                    printD('start with $numPlayers');
                     isStarted = true;
-                    goToStartGamePage();
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (context) => SetUserNames())
+                    );
                   },
-                  child: Text('Старт!',
+                  child: Text('Старт',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 32,
@@ -244,19 +239,20 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 SizedBox(height: 30),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue[100]),
-                  onPressed: _setUserNames,
-                  child: Text('указать имена игроков', textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.pink,
-                        fontSize: 24,
-                        //fontWeight: FontWeight.bold
-                      )
-                  ),
-                ),
-                SizedBox(height: 20,),
-                Row(
+                // ElevatedButton(
+                //   style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue[100]),
+                //   onPressed: _setUserNames,
+                //   child: Text('указать имена игроков', textAlign: TextAlign.center,
+                //       style: TextStyle(
+                //         color: Colors.pink,
+                //         fontSize: 24,
+                //         //fontWeight: FontWeight.bold
+                //       )
+                //   ),
+                // ),
+                // SizedBox(height: 20,),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text('Таймер: '),
@@ -268,7 +264,6 @@ class _MyHomePageState extends State<MyHomePage> {
                     if (isTimer) Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SizedBox(width: 30,),
                         IconButton(
                           onPressed: (){
                             timerSec-=5;
@@ -277,7 +272,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             }
                             prefs.setInt('timerSec', timerSec);
                             setState(() {});
-                          }, icon: Icon(Icons.exposure_minus_1),
+                          }, icon: Icon(Icons.remove),
                           style: IconButton.styleFrom(backgroundColor: Colors.greenAccent[100]),
                         ),
                         Text('$timerSec сек.', style: TextStyle(fontSize: 24),),
@@ -287,7 +282,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             prefs.setInt('timerSec', timerSec);
                             setState(() {});
                           },
-                          icon: Icon(Icons.exposure_plus_1),
+                          icon: Icon(Icons.add),
                           style: IconButton.styleFrom(backgroundColor: Colors.greenAccent[200]),
                         ),
                       ],
@@ -308,24 +303,13 @@ class _MyHomePageState extends State<MyHomePage> {
         : Image.asset('images/notSpeakingSmile.jpg', width: 80, height: 80,);
   }
 
-  showAlertPage(String msg) {
-    showAboutDialog(
-      context: context,
-      applicationName: 'Alert',
-      children: <Widget>[
-        Padding(
-            padding: EdgeInsets.only(top: 15), child: Center(child: Text(msg)))
-      ],
-    );
-  }
-
   goToStartGamePage() {
     flutterTts.stop();
-    print('start game for $numPlayers');
+    printD('start game for $numPlayers');
     Navigator.push(context,
         MaterialPageRoute(builder: (context) => GameLoopPage())
     ).then((result) async {
-      print('cb from push');
+      printD('cb from push');
     });
   }
 
@@ -345,7 +329,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void _getSharedPrefs() async {
     await initSharedPrefs();
     users = prefs.getStringList('users') ?? [];
-    print('got users $users');
+    printD('got users $users');
     isTimer = prefs.getBool('isTimer') ?? false;
     timerSec = prefs.getInt('timerSec') ?? timerSec;
     if (users.isNotEmpty) {
