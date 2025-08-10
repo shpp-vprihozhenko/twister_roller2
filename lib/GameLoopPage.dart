@@ -84,9 +84,8 @@ class _GameLoopPageState extends State<GameLoopPage>
           _startSpeakAndListen();
         }
       });
-
+    numPlayers = users.length;
     spinTo(3);
-
   }
 
   void spinTo(int index) {
@@ -431,9 +430,6 @@ class _GameLoopPageState extends State<GameLoopPage>
     if (users.isNotEmpty) {
       users.removeAt(playerNumber-1);
       isPlayerRemoved = true;
-      if (playerNumber > users.length) {
-        playerNumber = 0;
-      }
     }
     numPlayers = users.length;
     setState(() {});
@@ -461,6 +457,7 @@ class _GameLoopPageState extends State<GameLoopPage>
     }
     await Future.delayed(Duration(milliseconds: 200));
     playerNumber++;
+    printD('s playerNumber $playerNumber ws numPlayers $numPlayers');
     if (playerNumber > numPlayers) {
       playerNumber = 1;
     }
@@ -489,14 +486,19 @@ class _GameLoopPageState extends State<GameLoopPage>
   }
   
   _updateBackTimer() async {
-    printD('_updateBackTimer');
+    //printD('_updateBackTimer');
+    if (isFinished) {
+      return;
+    }
     if (timerTask != '$playerTask$playerNumber') {
       printD('new task. No _updateBackTimer');
       return;
     }
     backTimerCounter--;
-    printD('_updateBackTimer $backTimerCounter');
-    setState(() {});
+    //printD('_updateBackTimer $backTimerCounter');
+    if (mounted) {
+      setState(() {});
+    }
     if (backTimerCounter > 0) {
       Future.delayed(Duration(seconds: 1), _updateBackTimer);
       return;

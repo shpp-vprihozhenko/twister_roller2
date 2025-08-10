@@ -192,9 +192,10 @@ class _SetUserNamesState extends State<SetUserNames> {
     prefs.setStringList('users', users);
   }
 
-  void _done() {
-    Navigator.push(context,
+  void _done() async {
+    await Navigator.push(context,
         MaterialPageRoute(builder: (context) => GameLoopPage())
     );
+    setState(() {});
   }
 }
